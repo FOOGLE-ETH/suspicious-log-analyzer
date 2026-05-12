@@ -1,0 +1,17 @@
+# Operational data — should not be committed
+alert_state.json
+alerts.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
