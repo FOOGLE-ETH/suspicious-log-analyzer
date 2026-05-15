@@ -101,5 +101,5 @@ This is a learning project, not production software. The current implementation 
 - Optional output to syslog / JSON over network for SIEM ingestion
 
 ## License
-
+ 
 MIT
