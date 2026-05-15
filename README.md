@@ -64,4 +64,42 @@ Top source IPs by total failed attempts:
 
 The detector groups failed login events by source IP, sorts them chronologically, and slides a window across the events. An IP is flagged when `threshold` consecutive attempts fall within a span of `window` seconds. This catches bursts while letting genuinely sporadic failures (e.g., a real user mistyping their password twice over a day) pass without alerting.
 
-The sliding window is the core defensive trade-off: tighter windows miss low-and-slow attacks; wider windows generate noise. The CLI parameters expose this trade-off explicitly so the operator can tune detection to their e
+The sliding window is the core defensive trade-off: tighter windows miss low-and-slow attacks; wider windows generate noise. The CLI parameters expose this trade-off explicitly so the operator can tune detection to their environment.
+
+## Security design decisions
+
+**State persistence + permission enforcement.** Alert state is written to `alert_state.json`. Every write call enforces `chmod 600` on the file. This protects the state file from being tampered with by other low-privilege processes on the same host — an attacker who modifies the state file (e.g., setting a future timestamp) could silently disable detection for their own IP. Aligned with the principle of least privilege (OWASP A01:2021 / CWE-732).
+
+**Allowlist for false-positive control.** Trusted internal IPs are excluded from detection via `allowlist.txt`. This file is intentionally separate from program state so it can be owned and edited by a different user (e.g., a sysadmin) than the user that runs the analyzer — a form of separation of duties.
+
+**Stateless detection logic.** The detection function is pure (input events + parameters to alerts) and isolated from I/O. This makes it independently testable and means the detection rule can be tuned or replaced without touching the rest of the pipeline.
+
+## Mapping to industry frameworks
+
+- **OWASP Top 10 A09:2021** — Security Logging and Monitoring Failures. This project addresses the detection side: turning raw logs into actionable alerts.
+- **CWE-732** — Incorrect Permission Assignment for Critical Resource. Mitigated by enforcing `chmod 600` on the state file.
+- **MITRE ATT&CK T1110** — Brute Force. The detector targets T1110.001 (Password Guessing) and partially T1110.003 (Password Spraying — limited; see below).
+
+## Limitations (known)
+
+This is a learning project, not production software. The current implementation has deliberate gaps:
+
+- **IPv4 only.** The regex captures only IPv4 source addresses. Attacks over IPv6 are invisible.
+- **Only matches `Failed password` events.** Other SSH failure modes are not detected.
+- **Single host.** No centralized aggregation across multiple servers.
+- **No password-spray detection.** Aggregation is per-source-IP, not per-target-username. An attacker rotating across 1,000 IPs but hitting the same account would evade detection.
+- **State file is JSON, not a transactional database.** Concurrent runs of the script could produce a TOCTOU race.
+- **No reputation enrichment.** All non-allowlisted IPs are treated equally.
+
+## Roadmap
+
+- IPv6 support
+- Per-username aggregation for password spraying detection
+- Multi-pattern parsing for non-password failure modes
+- Pluggable enrichment (IP reputation feeds)
+- File locking to prevent concurrent-run race conditions
+- Optional output to syslog / JSON over network for SIEM ingestion
+
+## License
+
+MIT
